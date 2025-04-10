@@ -6,15 +6,18 @@ pipeline {
         ansiColor('xterm')
     }
     environment {
-        awsID = '339712874850'
-        awsECRurl = 'dkr.ecr.us-east-1.amazonaws.com'
         project = 'expense'
-        ENV = 'dev'
         component = 'frontend'
+        ENV = 'dev'
+        awsID = '339712874850'
         awsRegion = 'us-east-1'
         awsCreds = 'aws-creds'
+        awsECRurl = 'dkr.ecr.us-east-1.amazonaws.com'
         appVersion = ''
         imageURL = ''
+    }
+    parameters{
+        booleanParam(name: 'deploy', defaultValue: false, description: 'Select for deploy')
     }
     stages {
         stage('Read Version') {
@@ -37,7 +40,7 @@ pipeline {
         stage('Docker Build') {
             steps {
                 sh """
-                    docker build -t ${awsID}.${awsECRurl}/${project}/${ENV}/${component}:${appVersion} .
+                    docker build -t ${imageURL}:${appVersion} .
                     docker images
                 """
             }
@@ -46,22 +49,21 @@ pipeline {
             steps {
                 withAWS(region: "${awsRegion}", credentials: "${awsCreds}") {
                     sh """
-                        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${awsID}.${awsECRurl}
-                        docker push ${awsID}.${awsECRurl}/${project}/${ENV}/${component}:${appVersion}
+                        aws ecr get-login-password --region ${awsRegion} | docker login --username AWS --password-stdin ${awsID}.${awsECRurl}
+                        docker push ${imageURL}:${appVersion}
                     """
                 }
             }
         }
         stage('Deploy') {
-            steps {
-                withAWS(region: "${awsRegion}", credentials: "${awsCreds}") {
-                    sh """
-                        aws eks update-kubeconfig --region ${awsRegion} --name expense-dev
-                        cd helm
-                        sed -i 's/IMAGE_VERSION/${appVersion}/g' values-${ENV}.yaml
-                        helm upgrade --install ${component} -f values-${ENV}.yaml .
-                    """
-                }
+            when {
+                expression { params.deploy }
+            }
+            steps{
+                build job: 'frontend-cd', parameters: [
+                    string(name: 'version', value: "$appVersion"),
+                    string(name: 'ENV', value: 'dev'),
+                ], wait: true
             }
         }
     }
