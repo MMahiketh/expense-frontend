@@ -1,10 +1,7 @@
 pipeline {
     agent any
-    // agent {
-    //     label 'Agent-npm'
-    // }
     options {
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 5, unit: 'MINUTES')
         disableConcurrentBuilds()
         ansiColor('xterm')
     }
@@ -13,7 +10,7 @@ pipeline {
         awsECRurl = 'dkr.ecr.us-east-1.amazonaws.com'
         project = 'expense'
         ENV = 'dev'
-        component = 'backend'
+        component = 'frontend'
         awsRegion = 'us-east-1'
         awsCreds = 'aws-creds'
         appVersion = ''
