@@ -12,4 +12,4 @@ service:
   targetPort: 8080
   # nodePort: 30011
 tgb:
-  arn: arn:aws:elasticloadbalancing:us-east-1:339712874850:targetgroup/expense-dev/12fd98a4ff730489
+  arn: arn:aws:elasticloadbalancing:us-east-1:339712874850:targetgroup/expense-dev/684dbc2eb0f40e32
