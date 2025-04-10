@@ -1,0 +1,151 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: frontend
+  namespace: expense
+data:
+  nginx.conf: |
+    user www-data;
+    worker_processes 4;
+    pid /var/run/nginx.pid;
+
+    events {
+      worker_connections 768;
+    }
+
+    http {
+
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+      keepalive_timeout 65;
+      types_hash_max_size 2048;
+      large_client_header_buffers 6 32k;
+      client_max_body_size 100m;
+
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+
+      access_log /var/log/nginx/access.log;
+      error_log /var/log/nginx/error.log debug; # change from debug to warn or error for production
+
+      gzip on;
+      gzip_disable "msie6";
+
+      include /etc/nginx/conf.d/*.conf;
+      include /etc/nginx/sites-enabled/*;
+
+      server {
+        listen       8080;
+        server_name  localhost;
+
+        proxy_http_version 1.1;
+
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+            ssi    on;
+        }
+
+        location /images/ {
+            expires 5s;
+            root   /usr/share/nginx/html;
+            try_files $uri /images/placeholder.png;
+        }
+
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+
+        location /api/ { 
+            proxy_pass http://backend:8080/;
+        }
+      }
+    }
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v1
+metadata:
+  name: frontend
+  namespace: expense
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    apiVersion: apps/v1
+    name: frontend
+  minReplicas: {{ .Values.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  targetCPUUtilizationPercentage: {{ .Values.hpa.cpuUtilization }}
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: frontend
+  namespace: expense
+spec:
+  replicas: {{ .Values.deployment.desiredReplicas }}
+  selector:
+    matchLabels:
+      app: frontend
+      tier: web
+      project: expense
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: web
+        project: expense
+    spec:
+      containers:
+      - name: nginx
+        image: joindevops/frontend:{{ .Values.deployment.imageVersion }}
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        volumeMounts:
+        - name: nginx-config-vol
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+      volumes:
+      - name: nginx-config-vol
+        configMap:
+          name: frontend
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: frontend
+  namespace: expense
+spec:
+  # type: {{ .Values.service.type }}
+  selector:
+    app: frontend
+    tier: web
+    project: expense
+  ports:
+  - name: nginx-port
+    protocol: TCP
+    port: {{ .Values.service.port }}
+    # targetPort: {{ .Values.service.targetPort }}
+---
+kind: TargetGroupBinding
+apiVersion: elbv2.k8s.aws/v1beta1
+metadata:
+  name: frontend
+  namespace: expense
+spec:
+  serviceRef:
+    name: frontend
+    port: {{ .Values.service.port }}
+  targetGroupARN: {{ .Values.tgb.arn }}
+  targetType: ip
