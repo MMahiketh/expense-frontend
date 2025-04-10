@@ -14,6 +14,7 @@ pipeline {
         awsRegion = 'us-east-1'
         awsCreds = 'aws-creds'
         appVersion = ''
+        imageURL = ''
     }
     stages {
         stage('Read Version') {
@@ -22,6 +23,14 @@ pipeline {
                     def packageJson = readJSON file: 'code/package.json'
                     appVersion = packageJson.version
                     echo "App Version: ${appVersion}"
+                }
+            }
+        }
+        stage('Setup') {
+            steps {
+                script {
+                    imageURL = "${awsID}.${awsECRurl}/${project}/${ENV}/${component}"
+                    echo "Image URL: ${imageURL}"
                 }
             }
         }
@@ -39,6 +48,18 @@ pipeline {
                     sh """
                         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${awsID}.${awsECRurl}
                         docker push ${awsID}.${awsECRurl}/${project}/${ENV}/${component}:${appVersion}
+                    """
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                withAWS(region: "${awsRegion}", credentials: "${awsCreds}") {
+                    sh """
+                        aws eks update-kubeconfig --region ${awsRegion} --name expense-dev
+                        cd helm
+                        sed -i 's/IMAGE_VERSION/${appVersion}/g' values-${ENV}.yaml
+                        helm upgrade --install ${component} -f values-${ENV}.yaml .
                     """
                 }
             }
