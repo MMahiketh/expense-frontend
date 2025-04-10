@@ -7,7 +7,7 @@ deployment:
   imageURL: 339712874850.dkr.ecr.us-east-1.amazonaws.com/expense/dev/frontend
   imageVersion: v1
 service:
-  type: LoadBalancer
+  # type: LoadBalancer
   port: 8080
   targetPort: 8080
   # nodePort: 30011
