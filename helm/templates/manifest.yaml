@@ -100,7 +100,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: joindevops/frontend:{{ .Values.deployment.imageVersion }}
+        image: "{{ .Values.deployment.imageURL }}:{{ .Values.deployment.imageVersion }}"
         resources:
           requests:
             cpu: 100m
